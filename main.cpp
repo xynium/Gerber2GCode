@@ -49,16 +49,14 @@ int main(int argc, char **argv) {
 	Matrix mdEdg;
 	int iInZone;
 
-
-
 	if (argc < 2) {
 		fprintf(stderr, "Usage: %s filename without .gbr if drl file present should have same name\n", argv[0]);
 		return 1;
 	}
 	filename = argv[1];    //"test.gbr";
-	//filename = "/home/aura/Documents/kicad/Inverter/Fab Fichier/InverterPcb-F.Cu.gbr"; //
+	//filename = "/home/aura/Documents/kicad/LaserGalva/LaserGalva"; //
 	//filename = "test1";
-    outfile.open(filename+".gcode"); // open an output file stream
+	outfile.open(filename + ".gcode"); // open an output file stream
 	cmHole.iHasDrill = cmHole.ReadDrl(filename + ".drl");
 
 	sX = filename + ".gbr";
@@ -72,8 +70,8 @@ int main(int argc, char **argv) {
 	outfile << "G90" << std::endl;	//G90 ; use absolute coordinates
 	outfile << "G1 Z" << ZUP << std::endl; // monte
 	outfile << "G1 F180" << std::endl; //Set la vitesse mm/mn
-	sX = "20.0";  // point de depart
-	sY = "-30.0";
+	sX = "0.0";  // point de depart
+	sY = "0.0";
 	iInZone = 0;
 
 	/*test fonction distance
@@ -207,6 +205,10 @@ int main(int argc, char **argv) {
 						ic++;
 					}
 
+					//Miroir du gerber   Y est dans champ 3
+					if ((MIRROR == 1) && (sLgnChamp[ic - 1] == "Y"))
+						sLgnChamp[ic] = to_string(-stod(sLgnChamp[ic]));
+
 					////////////////////////////////PLOTE D01 ////////////////////////////////////////////
 					if (sLgnChamp[ic][0] == 'D') {  // execute la cmd
 						if ((sLgnChamp[ic + 1][0] == '0') && (sLgnChamp[ic + 1][1] == '1')) {
@@ -273,7 +275,6 @@ int main(int argc, char **argv) {
 								sY = sLgnChamp[3];
 								dX = stod(sX);
 								dY = stod(sY);
-
 								PlotTheTruc(dX, dY, dXR, dXR, dTr, ""); // plotte
 							}
 							if (sAperture[iCurApert][1][0] == 'O') {  // Oblong
@@ -293,7 +294,6 @@ int main(int argc, char **argv) {
 								sY = sLgnChamp[3];
 								dX = stod(sX);
 								dY = stod(sY);
-
 								PlotTheTruc(dX, dY, dXR, dYR, dTr, ""); // plotte
 
 							}
@@ -314,7 +314,6 @@ int main(int argc, char **argv) {
 								sY = sLgnChamp[3];
 								dX = stod(sX);
 								dY = stod(sY);
-
 								PlotTheTruc(dX, dY, dXR, dYR, dTr, "R"); // plotte
 							}
 							if (sAperture[iCurApert][1][0] == 'P') {  // Polygon
@@ -745,6 +744,24 @@ void PlotSeg(double dXa, double dYa, double dXb, double dYb, double dXR) {
 
 		}
 	} else {  // trace direc en 1 passe
+		dRe = PTDIAM / 2.0;
+		dTrkAng = atan2((dYb - dYa), (dXb - dXa));
+		while (dTrkAng < 0)
+			dTrkAng += 2 * M_PI;
+
+		if (cmHole.iHasDrill == 0) {    // repere si il y a un percage
+			dz = cmHole.DrillAtPos(dXa, dYa);
+			if (dz != 0) { // replace le pt dXa dYa pour ne pas boucher le trou
+				dYa += (dz / 2.0 + dRe) * sin(dTrkAng);
+				dXa += (dz / 2.0 + dRe) * cos(dTrkAng);
+			}
+			dz = cmHole.DrillAtPos(dXb, dYb);
+			if (dz != 0) { // replace le pt dXa dYa pour ne pas boucher le trou
+				dYb -= (dz / 2.0 + dRe) * sin(dTrkAng);
+				dXb -= (dz / 2.0 + dRe) * cos(dTrkAng);
+			}
+		}
+
 		sXX = to_string(dXa);
 		sYY = to_string(dYa);
 		outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZDWN << std::endl;
@@ -754,7 +771,6 @@ void PlotSeg(double dXa, double dYa, double dXb, double dYb, double dXR) {
 	outfile << "G1 X" << sXX << " Y" << sYY << std::endl;  // positione a la fin de la piste si pas de move entre instruction
 
 }
-
 
 /*
  G1 X20.544472 Y20.077782 Z15

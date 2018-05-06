@@ -32,13 +32,14 @@
 using namespace std;
 
 //user def
-#define ZDWN 0.1    // en mm
-#define ZUP  15    // en mm
-#define PTDIAM 0.4   // en mm diametre de la pointe
-#define CHVMT 0.1 // en mm chevauchement des tracé cas piste en plusieurs passe
+#define ZDWN 0.1    // pen low level in mm
+#define ZUP  15    // pen higth level in mm
+#define PTDIAM 0.4   // in mm pen diameter 
+#define CHVMT 0.1 // in mm recovering of 2 lines
+#define MIRROR 1 // 1 si mirroir
 
 //prog def
-#define NAPPERT 60  // dimensio tableau appert nombre d'appert supporté
+#define NAPPERT 60  // dimension tableau appert nombre d'appert supporté
 #define DHOLETOL 0.0001   // tolerance dans la comparaison des position pour trouver si trou ou pas
 
 typedef vector<double> Row; // One row of the matrix

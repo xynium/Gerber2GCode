@@ -125,7 +125,10 @@ int cHole::ReadDrl(string filename) {
 			double dXb = stod(sX);
 			double dYb = stod(sY);
 			tery.push_back(dXb);
-			tery.push_back(dYb);
+			if (MIRROR == 0)
+				tery.push_back(dYb);
+			else
+				tery.push_back(-dYb);
 			tery.push_back(daTool[iTool]);
 			mdHole.push_back(tery);
 		}
@@ -141,7 +144,7 @@ int cHole::ReadDrl(string filename) {
 // find if a drill at pos dX dY return diamter or 0 if not
 double cHole::DrillAtPos(double dX, double dY) {
 	for (int in = 0; in < mdHole.size(); in++) {
-		if ((fabs(mdHole[in][0]- dX)<DHOLETOL) && (fabs(mdHole[in][1] - dY)<DHOLETOL))
+		if ((fabs(mdHole[in][0] - dX) < DHOLETOL) && (fabs(mdHole[in][1] - dY) < DHOLETOL))
 			return mdHole[in][2];
 	}
 	return 0.0;
