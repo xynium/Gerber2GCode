@@ -4,7 +4,7 @@
   \     /  /   |   |/   |   \|   |    |   /  \ /  \
   /     \  \____   /    |    \   |    |  /    Y    \
  /___/\  \ / ______\____|__  /___|______/\____|__  /
- \_/ \/              \/                    \/
+       \_/ \/              \/                    \/
 
  Avril 2018
  convertis les fichiers Gerber en Gcode
@@ -33,10 +33,10 @@ using namespace std;
 
 //user def
 #define ZDWN 0.1    // pen low level in mm
-#define ZUP  15    // pen higth level in mm
+#define ZUP  5    // pen higth level in mm
 #define PTDIAM 0.4   // in mm pen diameter 
 #define CHVMT 0.1 // in mm recovering of 2 lines
-#define MIRROR 1 // 1 si mirroir
+#define MIRROR 0 // 1 si mirroir
 
 //prog def
 #define NAPPERT 60  // dimension tableau appert nombre d'appert supporté
@@ -51,6 +51,9 @@ struct dPts {
 	int iC;
 };
 
+//typedef  dPts tdPts;
+
+
 class cHole {
 
 private:
@@ -58,6 +61,7 @@ private:
 
 public:
 	int iHasDrill;  // =0 si le fichier drill has been corectly read
+	int iMirror; // global parrameter defined
 
 public:
 	cHole(void);
@@ -65,11 +69,16 @@ public:
 	double DrillAtPos(double dX, double dY);
 };
 
+
+
+
 int pnFormat(string s, int i);
 void PlotZone(Matrix mdPts);
 dPts CalcCross(dPts PtA1, dPts PtA2, dPts PtB1, dPts PtB2);
 double CalcPtDist(dPts PtA1, dPts PtA2, dPts PtB1);
 void PlotTheTruc(double dX, double dY, double dXR, double dYR, double dTr, string sR);
 void PlotSeg(double dXa, double dYa, double dXb, double dYb, double dXR);
+void GetPCBLimit(string sf,dPts *dpO,dPts *dpE);
+std::string format(const char* format, ...);
 
 #endif /* PNGERBER_HPP_ */
