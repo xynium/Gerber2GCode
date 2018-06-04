@@ -17,21 +17,44 @@
  Le fonctionnement des D est assumé en G01
 
 
- TODO sous entend dans la lecture de X et Y que iNXFrac= iNYFrac
+ TODO dans FS ne prend que si spec les chiffres apres la vigule
 
- TODO dans le trace des segment quand racourcie la piste verifier que le racourcissement est
- dans le bon sens quelque soit l'orientation piste
 
+ */
+
+/*
+ *  Convert Gerber file to gcode so as to be ploted by a 3D printer with a pen
+ Copyright (C) 2018  Lathuile Jean Pierre
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+ *
  */
 
 #include "PNGerber.hpp"
 #include <string.h>
 #include <vector>
+#include <string>
+#include <cstdarg>
+#include <memory>
 
 using namespace std;
 int iNXFrac, iNYFrac;
 cHole cmHole;
 std::ofstream outfile;
+double dZDWN, dZUP, dPTDIAM, dCHVMT;  // global parrameter defined
+//int iDeb[10]; // debug variable
 
 int main(int argc, char **argv) {
 
@@ -48,31 +71,70 @@ int main(int argc, char **argv) {
 	string sXX, sYY;
 	Matrix mdEdg;
 	int iInZone;
+	int iMIRROR;
+	int iNotInit;
+	dPts *dpO, *dpE;
+
+	std::cout
+			<< "Gerber2GCode\n  Copyright (C) 2018  Lathuile Jean Pierre\nThis program comes with ABSOLUTELY NO WARRANTY; for details see licence file.\n This is free software, and you are welcome to redistribute it\n under certain conditions"
+			<< linebuffer << std::endl;
 
 	if (argc < 2) {
 		fprintf(stderr, "Usage: %s filename without .gbr if drl file present should have same name\n", argv[0]);
-		return 1;
+		fprintf(stderr, "\nFollowing options (after file name) :\n");
+		fprintf(stderr, "    -M   -> Mirror default no\n");
+		fprintf(stderr, "    -Px.x   -> x.x pen point diameter in mm default 0.4mm\n");
+		fprintf(stderr, "    -Cx.x   -> x.x line recovering in mm default 0.1mm\n");
+		fprintf(stderr, "    -Ux   ->  x pen up position mm default 5mm\n");
+		fprintf(stderr, "    -Dx   ->  x pen down position mm default 0.1mm\n");
+		//todo	return 1;
 	}
 	filename = argv[1];    //"test.gbr";
-	//filename = "/home/aura/Documents/kicad/LaserGalva/LaserGalva"; //
-	//filename = "test1";
+//	filename = "/home/aura/Documents/kicad/LaserGalva/LaserGalva"; //todo
+	filename = "test";
+	dZDWN = ZDWN;
+	dZUP = ZUP;
+	dPTDIAM = PTDIAM;
+	dCHVMT = CHVMT;
+	iMIRROR = MIRROR;
+	for (int in = 2; in < argc; in++) {  // Scan parrameter
+		if (argv[in][0] == '-') {
+			if (argv[in][1] == 'M')
+				iMIRROR = 1;
+			if (argv[in][1] == 'P') {
+				sX = argv[in];
+				dPTDIAM = stod(sX.substr(2));
+			}
+			if (argv[in][1] == 'C') {
+				sX = argv[in];
+				dCHVMT = stod(sX.substr(2));
+			}
+			if (argv[in][1] == 'D') {
+				sX = argv[in];
+				dZDWN = stod(sX.substr(2));
+			}
+			if (argv[in][1] == 'U') {
+				sX = argv[in];
+				dZUP = stod(sX.substr(2));
+			}
+		}
+	}
+
 	outfile.open(filename + ".gcode"); // open an output file stream
+	cmHole.iMirror = iMIRROR;
 	cmHole.iHasDrill = cmHole.ReadDrl(filename + ".drl");
 
 	sX = filename + ".gbr";
 	std::ifstream infile(sX.c_str()); // open an input file stream
 
-	std::cout << std::endl << "DEPART" << std::endl;
+	std::cout << std::endl << "START" << std::endl;
 	iApert = 0;
 	// Entete gcode
 	outfile << "G21" << std::endl;  // mm
-	outfile << "G28" << std::endl;  // home
+	//outfile << "G28" << std::endl;  // home
 	outfile << "G90" << std::endl;	//G90 ; use absolute coordinates
-	outfile << "G1 Z" << ZUP << std::endl; // monte
-	outfile << "G1 F180" << std::endl; //Set la vitesse mm/mn
-	sX = "0.0";  // point de depart
-	sY = "0.0";
-	iInZone = 0;
+	outfile << "G1 Z" << dZUP << std::endl; // monte
+	outfile << "G1 F500" << std::endl; //Set la vitesse mm/mn
 
 	/*test fonction distance
 	 dPts PtB1, PtA1, PtA2;
@@ -83,6 +145,21 @@ int main(int argc, char **argv) {
 	 PtB1.dXp = 1.5;
 	 PtB1.dYp = 2;
 	 dXD = CalcPtDist(PtA1, PtA2, PtB1);*/
+
+	dpO = (dPts*) malloc(sizeof(dPts));
+	dpE = (dPts*) malloc(sizeof(dPts));
+
+	GetPCBLimit(filename, dpO, dpE);  // Cherche la dimension du pcb
+
+	sX = format("pta %f , %f     ptb %f, %f", dpO->dXp, dpO->dYp, dpE->dXp, dpE->dYp);
+
+	std::cout << std::endl << sX << std::endl;
+
+	sX = "0.0";  // point de depart normalment pas utilisé
+	sY = "0.0";
+	iNotInit = 1;
+	iInZone = 0;
+	//infile.seekg(ios_base::beg);
 
 	while (infile && getline(infile, linebuffer)) {
 		if (linebuffer.length() == 0)
@@ -198,16 +275,32 @@ int main(int argc, char **argv) {
 				double dTr;
 
 				for (ic = 0; ic < iOrder; ic++) { // met la virgule la longueur ne change pas -> le dernier chiffre saute
-					if ((sLgnChamp[ic][0] == 'X') || (sLgnChamp[ic][0] == 'Y') || (sLgnChamp[ic][0] == 'I') || (sLgnChamp[ic][0] == 'J')) {
+					if ((sLgnChamp[ic][0] == 'X') || (sLgnChamp[ic][0] == 'I')) {
 						for (ia = sLgnChamp[ic + 1].size(); ia >= (sLgnChamp[ic + 1].size() - iNXFrac); ia--)
 							sLgnChamp[ic + 1][ia + 1] = sLgnChamp[ic + 1][ia];
 						sLgnChamp[ic + 1][ia + 1] = '.';
+						sLgnChamp[ic + 1] = to_string(stod(sLgnChamp[ic + 1]) - dpO->dXp); // modif 4june additonne offset
 						ic++;
 					}
 
-					//Miroir du gerber   Y est dans champ 3
-					if ((MIRROR == 1) && (sLgnChamp[ic - 1] == "Y"))
-						sLgnChamp[ic] = to_string(-stod(sLgnChamp[ic]));
+					if ((sLgnChamp[ic][0] == 'Y') || (sLgnChamp[ic][0] == 'J')) {
+						for (ia = sLgnChamp[ic + 1].size(); ia >= (sLgnChamp[ic + 1].size() - iNYFrac); ia--)
+							sLgnChamp[ic + 1][ia + 1] = sLgnChamp[ic + 1][ia];
+						sLgnChamp[ic + 1][ia + 1] = '.';
+
+						if (iMIRROR == 1)
+							sLgnChamp[ic + 1] = to_string(dpE->dYp - stod(sLgnChamp[ic + 1])); // modif 4june mirroir new look
+						else
+							sLgnChamp[ic + 1] = to_string(stod(sLgnChamp[ic + 1]) - dpO->dYp); // modif 4june additonne offset
+
+						ic++;
+					}
+
+					if ((ic == 4) && (iNotInit == 1)) { // Fixe l'origine au premier point lu
+						iNotInit = 0;
+						sX = sLgnChamp[1];
+						sY = sLgnChamp[3];
+					}
 
 					////////////////////////////////PLOTE D01 ////////////////////////////////////////////
 					if (sLgnChamp[ic][0] == 'D') {  // execute la cmd
@@ -241,14 +334,14 @@ int main(int argc, char **argv) {
 						if ((sLgnChamp[ic + 1][0] == '0') && (sLgnChamp[ic + 1][1] == '2')) {  // move
 							if (iInZone == 0) {
 								iHasBeenTiTd = 1;
-								outfile << "G1 X" << sX << " Y" << sY << " Z" << ZUP << std::endl;
+								outfile << "G1 X" << sX << " Y" << sY << " Z" << dZUP << std::endl;
 								sX = sLgnChamp[1];
 								sY = sLgnChamp[3];
 								outfile << "G1 X" << sLgnChamp[1] << " Y" << sLgnChamp[3] << std::endl;
 							} else {  // Draw the aera move to begin pos
 								Row tery;
 								iHasBeenTiTd = 1;
-								outfile << "G1 X" << sX << " Y" << sY << " Z" << ZUP << std::endl; // releve  le crayon
+								outfile << "G1 X" << sX << " Y" << sY << " Z" << dZUP << std::endl; // releve  le crayon
 								sX = sLgnChamp[1];
 								sY = sLgnChamp[3];
 								double dXb = stod(sX);
@@ -256,7 +349,7 @@ int main(int argc, char **argv) {
 								tery.push_back(dXb);
 								tery.push_back(dYb);
 								mdEdg.push_back(tery);
-								outfile << "G1 X" << sX << " Y" << sY << " Z" << ZUP << std::endl; // amenne le crayon  a la pos
+								outfile << "G1 X" << sX << " Y" << sY << " Z" << dZUP << std::endl; // amenne le crayon  a la pos
 							}
 						}
 
@@ -270,7 +363,7 @@ int main(int argc, char **argv) {
 								if (sAperture[iCurApert][3][0] == 'X')
 									dTr = stod(sAperture[iCurApert][4]) / 2.0;
 
-								outfile << "G1 X" << sX << " Y" << sY << " Z" << ZUP << std::endl; // amenne le crayon  a la pos
+								outfile << "G1 X" << sX << " Y" << sY << " Z" << dZUP << std::endl; // amenne le crayon  a la pos
 								sX = sLgnChamp[1];
 								sY = sLgnChamp[3];
 								dX = stod(sX);
@@ -289,7 +382,7 @@ int main(int argc, char **argv) {
 								if (sAperture[iCurApert][5][0] == 'X')   // percage central
 									dTr = stod(sAperture[iCurApert][6]) / 2.0;
 
-								outfile << "G1 X" << sX << " Y" << sY << " Z" << ZUP << std::endl; // amenne le crayon  a la pos
+								outfile << "G1 X" << sX << " Y" << sY << " Z" << dZUP << std::endl; // amenne le crayon  a la pos
 								sX = sLgnChamp[1];
 								sY = sLgnChamp[3];
 								dX = stod(sX);
@@ -309,7 +402,7 @@ int main(int argc, char **argv) {
 								if (sAperture[iCurApert][5][0] == 'X')   // percage central
 									dTr = stod(sAperture[iCurApert][6]) / 2.0;
 
-								outfile << "G1 X" << sX << " Y" << sY << " Z" << ZUP << std::endl; // amenne le crayon  a la pos
+								outfile << "G1 X" << sX << " Y" << sY << " Z" << dZUP << std::endl; // amenne le crayon  a la pos
 								sX = sLgnChamp[1];
 								sY = sLgnChamp[3];
 								dX = stod(sX);
@@ -338,17 +431,21 @@ int main(int argc, char **argv) {
 			}
 
 			if (iHasBeenTiTd == 0) {   // La lgn n'as pas été traitée pb
-				std::cout << "Ligne non Traitée :  " << linebuffer << std::endl;
+				std::cout << "untreated line :  " << linebuffer << std::endl;
 				//return 1;
 			}
 		}
 	}
 
+	free(dpO);
+	free(dpE);
+
 //outfile << "TEST" << std::endl; // gnuplot 3D grid format
 //outfile << std::endl; // empty line for gnuplot
 
-	std::cout << "FINI" << std::endl;
+	std::cout << "DONE" << std::endl;
 	outfile.close();
+	infile.close();
 
 	/*
 	 FILE *pipe = popen("gnuplot -persist","w");
@@ -393,7 +490,7 @@ void PlotZone(Matrix mdPts) {
 
 	sXX = to_string(mdPts[0][0]);  //move au debut
 	sYY = to_string(mdPts[0][1]);
-	outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZUP << std::endl;
+	outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZUP << std::endl;
 
 	for (unsigned int in = 0; in < mdPts.size(); in++) {  // Plote le contour et repere les Y min max
 		if (dYmin > mdPts[in][1])
@@ -406,23 +503,23 @@ void PlotZone(Matrix mdPts) {
 			dXmax = mdPts[in][0];
 		sXX = to_string(mdPts[in][0]);
 		sYY = to_string(mdPts[in][1]);
-		outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZDWN << std::endl;
+		outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZDWN << std::endl;
 	}
 	sXX = to_string(mdPts[0][0]);  // Reboucle l'aire
 	sYY = to_string(mdPts[0][1]);
-	outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZDWN << std::endl;
-	outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZUP << std::endl;
+	outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZDWN << std::endl;
+	outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZUP << std::endl;
 	iZig = 0;
 	iUp = 1;
 
-	for (double dY = dYmin; dY < dYmax; dY += (PTDIAM - CHVMT)) {  // Remplie l'aire ligne axe X depart de Y=dYmax jusqu dYmin
+	for (double dY = dYmin; dY < dYmax; dY += (dPTDIAM - dCHVMT)) {  // Remplie l'aire ligne axe X depart de Y=dYmax jusqu dYmin
 		// Cherche les intersection avec les edges
 		PtB1.dXp = dXmin;
 		PtB2.dXp = dXmax;
 		PtB1.dYp = dY;
 		PtB2.dYp = dY;
-
 		mvCross.clear();
+		// for (unsigned int in = 0; in <7;in++)		iDeb[in]=0;
 
 		for (unsigned int in = 0; in < mdPts.size(); in++) {  // Bcl tableau pts de croisement
 			PtA1.dXp = mdPts[in][0];
@@ -437,24 +534,25 @@ void PlotZone(Matrix mdPts) {
 				tery.push_back(PtR.dYp);
 				mvCross.push_back(tery);  //new Row(dXa, dYa, dXb, dYb));
 			}
+			/*	if (PtR.iC > 2) { // po debug erreur dans le calcul des cross
+			 iDeb[PtR.iC]++;
+			 }*/
 		}
 
 		if (mvCross.size() > 0) {
 			if (mvCross.size() % 2 != 0) {
-				std::cout << "Nombre impair de croisement" << std::endl;
+				std::cout << "Odd number of crossing ploting zone at Y = " << dY << std::endl;
 			} else {
 				iAsToRedo = 1;
 				while (iAsToRedo) {
 					iAsToRedo = 0;
 					for (unsigned int in = 0; in < mvCross.size() - 1; in++) {  // classe selon x croissant / decroissant
-
 						if (((mvCross[in][0] > mvCross[in + 1][0]) && (iZig == 0)) || ((mvCross[in][0] < mvCross[in + 1][0]) && (iZig == 1))) { // inverse les elts
 							Row rtmp = mvCross[in];
 							mvCross[in] = mvCross[in + 1];
 							mvCross[in + 1] = rtmp;
 							iAsToRedo = 1;
 						}
-
 					}
 				}
 				if (iZig == 0)
@@ -464,7 +562,7 @@ void PlotZone(Matrix mdPts) {
 
 				if (mvCross.size() != iPrevN) { //Quand plusieurs zone si une disparrait relever
 					iUp = 1;
-					outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZUP << std::endl;
+					outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZUP << std::endl;
 				}
 				iPrevN = mvCross.size();
 				//  trace la ligne en Zig Zag choisi un zig ou un zag
@@ -472,30 +570,30 @@ void PlotZone(Matrix mdPts) {
 					sXX = to_string(mvCross[in][0]);
 					sYY = to_string(mvCross[in][1]);
 					if (iUp == 0) { //plote
-						outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZDWN << std::endl;
+						outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZDWN << std::endl;
 						if (in == (mvCross.size() - 1))
 							iUp = 2;
 						else {
-							outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZUP << std::endl;
+							outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZUP << std::endl;
 							iUp = 1;
 						}
 					} else { //move
 						if (iUp != 2)
-							outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZUP << std::endl;
-						outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZDWN << std::endl;
+							outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZUP << std::endl;
+						outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZDWN << std::endl;
 						iUp = 0;
 					}
 				}
 
 				if (iUp == 0) {  // au cas ou
-					outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZUP << std::endl;
+					outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZUP << std::endl;
 					iUp = 1;
 				}
 			}
 		}
 	}
 	if (iUp != 1)
-		outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZUP << std::endl;
+		outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZUP << std::endl;
 }
 
 // Calcule le point de croisement de 2 lignes et retourne dans dPts.iC 1 si ce point est sur la ligne
@@ -541,7 +639,7 @@ dPts CalcCross(dPts PtA1, dPts PtA2, dPts PtB1, dPts PtB2) {
 	dMY = max(PtA1.dYp, PtA2.dYp);
 	dmY = min(PtA1.dYp, PtA2.dYp);
 
-	if ((PtRet.dXp <= dMX) && (PtRet.dXp >= dmX) && (PtRet.dYp <= dMY) && (PtRet.dYp > dmY))
+	if ((PtRet.dXp <= dMX) && (PtRet.dXp >= dmX) && (PtRet.dYp <= dMY) && (PtRet.dYp >= dmY))
 		PtRet.iC = 1;
 	else
 		PtRet.iC = 0;
@@ -586,10 +684,17 @@ void PlotTheTruc(double dX, double dY, double dXR, double dYR, double dTr, strin
 			dTr = dTmp / 2.0;
 	}
 
-	if (PTDIAM <= dXR)
-		dXR -= PTDIAM / 2;
-	if (PTDIAM <= dYR)
-		dYR -= PTDIAM / 2;
+	if (dPTDIAM / 2.0 <= dXR)
+		dXR -= dPTDIAM / 2;
+	else
+		dXR = 0;
+	if (dPTDIAM / 2.0 <= dYR)
+		dYR -= dPTDIAM / 2;
+	else
+		dYR = 0;
+
+	//if (dXR<0) dXR=0;   // modif 1/06 les pad de ci sont trop large
+	//if (dYR<0) dYR=0;
 	iTp = 0;
 
 	while (iTp != 2) {
@@ -603,8 +708,8 @@ void PlotTheTruc(double dX, double dY, double dXR, double dYR, double dTr, strin
 		sXX = to_string(dX + dXR);
 		sYY = to_string(dY + dYR - dTmp);
 
-		outfile << "G1 X" << sXX << " Y" << sYY << ZUP << std::endl;
-		outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZDWN << std::endl; //dessine un octogone
+		outfile << "G1 X" << sXX << " Y" << sYY << dZUP << std::endl;
+		outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZDWN << std::endl; //dessine un octogone
 
 		sYY = to_string(dY - dYR + dTmp);
 		outfile << "G1 X" << sXX << " Y" << sYY << std::endl;
@@ -635,12 +740,12 @@ void PlotTheTruc(double dX, double dY, double dXR, double dYR, double dTr, strin
 		outfile << "G1 X" << sXX << " Y" << sYY << std::endl;
 
 		iTp = 2;
-		if ((dXR - PTDIAM + CHVMT) > (dTr + PTDIAM / 2.0)) {   // Normal diam trou pas crucial sinon ajuster po que la derniere soit au rayon dTr exact
-			dXR -= PTDIAM - CHVMT;
+		if ((dXR - dPTDIAM + dCHVMT) > (dTr + dPTDIAM / 2.0)) {   // Normal diam trou pas crucial sinon ajuster po que la derniere soit au rayon dTr exact
+			dXR -= dPTDIAM - dCHVMT;
 			iTp--;
 		}
-		if ((dYR - PTDIAM + CHVMT) > (dTr + PTDIAM / 2.0)) {
-			dYR -= PTDIAM - CHVMT;
+		if ((dYR - dPTDIAM + dCHVMT) > (dTr + dPTDIAM / 2.0)) {
+			dYR -= dPTDIAM - dCHVMT;
 			iTp--;
 		}
 
@@ -664,13 +769,13 @@ void PlotSeg(double dXa, double dYa, double dXb, double dYb, double dXR) {
 	dSgn = 0.0;
 	dAlt = 1.0;
 
-	if (PTDIAM < dXR) { // il vas y avoir plusieur passe
+	if (dPTDIAM < dXR) { // il vas y avoir plusieur passe
 
-		dEffPst = PTDIAM - CHVMT;
-		iNpass = ceil((dXR - PTDIAM) / dEffPst);
-		dEffPst = (dXR - PTDIAM) / iNpass;    // corrige l'epaisseur de la piste eppaisseur effective
+		dEffPst = dPTDIAM - dCHVMT;
+		iNpass = ceil((dXR - dPTDIAM) / dEffPst);
+		dEffPst = (dXR - dPTDIAM) / iNpass;    // corrige l'epaisseur de la piste eppaisseur effective
 
-		ddT = dXR / 2.0 - PTDIAM / 2.0;  //- ((double)iNpass / 2.0) * dEffPst  ;    //extreme par rapport a l'axe
+		ddT = dXR / 2.0 - dPTDIAM / 2.0;  //- ((double)iNpass / 2.0) * dEffPst  ;    //extreme par rapport a l'axe
 		dRe = ddT; // dRe rayon du 1/2 cercle extremité
 		dTrkAng = atan2((dYb - dYa), (dXb - dXa));
 		while (dTrkAng < 0)
@@ -720,7 +825,7 @@ void PlotSeg(double dXa, double dYa, double dXb, double dYb, double dXR) {
 			dz *= dAlt;
 			sXX = to_string(dXa + ddT * cos(dTrkAng) - dz * sin(dTrkAng + dSgn));
 			sYY = to_string(dYa + ddT * sin(dTrkAng) + dz * cos(dTrkAng + dSgn));
-			outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZDWN << std::endl;
+			outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZDWN << std::endl;
 			dz2 *= dAlt;
 			sXX = to_string(dXb + ddT * cos(dTrkAng) - dz2 * sin(dTrkAng + dSgn));
 			sYY = to_string(dYb + ddT * sin(dTrkAng) + dz2 * cos(dTrkAng + dSgn));
@@ -744,7 +849,7 @@ void PlotSeg(double dXa, double dYa, double dXb, double dYb, double dXR) {
 
 		}
 	} else {  // trace direc en 1 passe
-		dRe = PTDIAM / 2.0;
+		dRe = dPTDIAM / 2.0;
 		dTrkAng = atan2((dYb - dYa), (dXb - dXa));
 		while (dTrkAng < 0)
 			dTrkAng += 2 * M_PI;
@@ -764,7 +869,7 @@ void PlotSeg(double dXa, double dYa, double dXb, double dYb, double dXR) {
 
 		sXX = to_string(dXa);
 		sYY = to_string(dYa);
-		outfile << "G1 X" << sXX << " Y" << sYY << " Z" << ZDWN << std::endl;
+		outfile << "G1 X" << sXX << " Y" << sYY << " Z" << dZDWN << std::endl;
 	}
 	sXX = to_string(dXb);
 	sYY = to_string(dYb);
@@ -772,6 +877,122 @@ void PlotSeg(double dXa, double dYa, double dXb, double dYb, double dXR) {
 
 }
 
+// retrouve les limites du pcb
+//entree nom du fichier
+//Sortie 2 points diagonale dpO minimal dpE maximal
+void GetPCBLimit(string fs, dPts *dpO, dPts *dpE) {
+	string linebuffer;
+	int iPos, iType, iOrder;
+	string sLgnChamp[40];
+	char cL;
+	double dT;
+
+	string sX = fs + ".gbr";
+	std::ifstream mifs(sX.c_str()); // open an input file stream
+
+	dpO->dXp = 100000000;
+	dpO->dYp = 100000000;
+	dpE->dXp = -100000000;
+	dpE->dYp = -100000000;
+
+	while (mifs && getline(mifs, linebuffer)) {
+		if (linebuffer.length() == 0)
+			continue;
+		iPos = 0; // num ordre char dans la lgn
+		iType = 2; // type Change d'etat selon Fig / Num ou %
+		iOrder = 0; // numero d'ordre du champ sur la lgn
+		sLgnChamp[0] = "";
+		while ((cL = linebuffer[iPos]) != '*') {   // parse
+			if ((cL == '%') && (iPos == 0)) {
+				sLgnChamp[iOrder] = cL;
+				//iOrder++;    le champ % ne sert a rien les commandes se distinguent seule
+				sLgnChamp[iOrder] = "";
+			} else {
+				if (((cL < 58) && (cL > 47)) || (cL == '-') || (cL == '+')) {   // Numeric
+					if (iType == 0) {
+						iOrder++; // chg de champ
+						sLgnChamp[iOrder] = "";
+					}
+					iType = 1;
+					sLgnChamp[iOrder] += (cL);
+				} else {
+					if (iType == 1) {
+						iOrder++; // chg de champ
+						sLgnChamp[iOrder] = "";
+					}
+					iType = 0;
+					sLgnChamp[iOrder] += cL;
+				}
+			}
+			iPos++;
+		} // fin du parsing dans le tab sLgnChamp les differants champs de la lgn en char ou num
+
+		if (cL == '*') { // Traite la ligne les 1 ou 2 premier char sLgnChamp definissent la commande
+			if ((sLgnChamp[0][0] == 'F') && (sLgnChamp[0][1] == 'S')) {     //FS
+				if ((sLgnChamp[0][2] == 'L') && (sLgnChamp[0][3] == 'A')) {
+					pnFormat(sLgnChamp[1], 0);
+					pnFormat(sLgnChamp[3], 1);
+				}
+			}
+
+			if (sLgnChamp[0][0] == 'X') {   // lgn de coordonée  ECRITURE FICHIER GCODE
+				unsigned int ia;
+				int ic;
+				string sXN, sYN;
+				double dTr;
+
+				for (ic = 0; ic < iOrder; ic++) { // met la virgule la longueur ne change pas -> le dernier chiffre saute
+					if ((sLgnChamp[ic][0] == 'X') || (sLgnChamp[ic][0] == 'I')) {
+						for (ia = sLgnChamp[ic + 1].size(); ia >= (sLgnChamp[ic + 1].size() - iNXFrac); ia--)
+							sLgnChamp[ic + 1][ia + 1] = sLgnChamp[ic + 1][ia];
+						sLgnChamp[ic + 1][ia + 1] = '.';
+						ic++;
+					}
+
+					if ((sLgnChamp[ic][0] == 'Y') || (sLgnChamp[ic][0] == 'J')) {
+						for (ia = sLgnChamp[ic + 1].size(); ia >= (sLgnChamp[ic + 1].size() - iNYFrac); ia--)
+							sLgnChamp[ic + 1][ia + 1] = sLgnChamp[ic + 1][ia];
+						sLgnChamp[ic + 1][ia + 1] = '.';
+						ic++;
+					}
+
+					if (sLgnChamp[ic - 1] == "Y") {
+						dT = stod(sLgnChamp[ic]);
+						if (dT > dpE->dYp)
+							dpE->dYp = dT;
+						if (dT < dpO->dYp)
+							dpO->dYp = dT;
+						dT = stod(sLgnChamp[ic - 2]);
+						if (dT > dpE->dXp)
+							dpE->dXp = dT;
+						if (dT < dpO->dXp)
+							dpO->dXp = dT;
+
+					}
+
+				}
+			}
+		}
+	}
+	mifs.close();
+}
+
+std::string format(const char* format, ...) {
+	va_list args;
+	va_start(args, format);
+#ifndef _MSC_VER
+	size_t size = std::snprintf(nullptr, 0, format, args) + 1; // Extra space for '\0'
+	std::unique_ptr<char[]> buf(new char[size]);
+	std::vsnprintf(buf.get(), size, format, args);
+	return std::string(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
+#else
+	int size = _vscprintf(format, args);
+	std::string result(++size, 0);
+	vsnprintf_s((char*)result.data(), size, _TRUNCATE, format, args);
+	return result;
+#endif
+	va_end(args);
+}
 /*
  G1 X20.544472 Y20.077782 Z15
  G1 X25.000000 Y25.000000
