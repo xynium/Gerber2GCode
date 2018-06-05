@@ -87,11 +87,10 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "    -Cx.x   -> x.x line recovering in mm default 0.1mm\n");
 		fprintf(stderr, "    -Ux   ->  x pen up position mm default 5mm\n");
 		fprintf(stderr, "    -Dx   ->  x pen down position mm default 0.1mm\n");
-		//todo	return 1;
+		return 1; //todo
 	}
-	filename = argv[1];    //"test.gbr";
-//	filename = "/home/aura/Documents/kicad/LaserGalva/LaserGalva"; //todo
-	filename = "test";
+	filename = argv[1];
+	//filename = "test";
 	dZDWN = ZDWN;
 	dZUP = ZUP;
 	dPTDIAM = PTDIAM;
@@ -134,24 +133,14 @@ int main(int argc, char **argv) {
 	//outfile << "G28" << std::endl;  // home
 	outfile << "G90" << std::endl;	//G90 ; use absolute coordinates
 	outfile << "G1 Z" << dZUP << std::endl; // monte
-	outfile << "G1 F500" << std::endl; //Set la vitesse mm/mn
-
-	/*test fonction distance
-	 dPts PtB1, PtA1, PtA2;
-	 PtA1.dXp = 1;
-	 PtA1.dYp = 1;
-	 PtA2.dXp = 2;
-	 PtA2.dYp = 1;
-	 PtB1.dXp = 1.5;
-	 PtB1.dYp = 2;
-	 dXD = CalcPtDist(PtA1, PtA2, PtB1);*/
+	outfile << "G1 F600" << std::endl; //Set la vitesse mm/mn
 
 	dpO = (dPts*) malloc(sizeof(dPts));
 	dpE = (dPts*) malloc(sizeof(dPts));
 
 	GetPCBLimit(filename, dpO, dpE);  // Cherche la dimension du pcb
 
-	sX = format("pta %f , %f     ptb %f, %f", dpO->dXp, dpO->dYp, dpE->dXp, dpE->dYp);
+	sX = format("PCB Dimension :  %f x %f  mm   ", dpE->dXp - dpO->dXp, dpE->dYp - dpO->dYp);
 
 	std::cout << std::endl << sX << std::endl;
 
@@ -440,21 +429,12 @@ int main(int argc, char **argv) {
 	free(dpO);
 	free(dpE);
 
-//outfile << "TEST" << std::endl; // gnuplot 3D grid format
-//outfile << std::endl; // empty line for gnuplot
+	outfile << "G1 Z" << dZUP << std::endl;  // return to org
+	outfile << "G1 X0 Y0" << std::endl;
 
 	std::cout << "DONE" << std::endl;
 	outfile.close();
 	infile.close();
-
-	/*
-	 FILE *pipe = popen("gnuplot -persist","w");
-	 fprintf(pipe, "set pm3d\n");
-	 fprintf(pipe, "set view 50,50,1,1\n");
-	 fprintf(pipe, "set hidden3d\n");
-	 fprintf(pipe, "set ticslevel 0\n");
-	 fprintf(pipe, "set contour base\n");
-	 fprintf(pipe, "splot './eqheat.dat'\n");    */
 
 	return (0);
 }
