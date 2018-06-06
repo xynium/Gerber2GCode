@@ -17,9 +17,6 @@
  Traite le fichier .drl carte de percage
 
 
- TODO
-
-
 
  */
 
@@ -31,6 +28,9 @@ using namespace std;
 
 cHole::cHole(void) {
 	iHasDrill = 1;
+	iMirror = MIRROR;
+	dpO= {0,0};
+	dpE= {0,0};
 }
 
 //Lit le fichier and build a vector of x y pos
@@ -38,7 +38,7 @@ cHole::cHole(void) {
 int cHole::ReadDrl(string filename) {
 
 	string sLgnChamp[40];
-	double daTool[NAPPERT]; // 30 Aperture a 7 champs
+	double daTool[NAPPERT]; // Aperture a 7 champs
 	char cL;
 	string linebuffer;
 	unsigned int iPos, iType, iOrder;
@@ -90,7 +90,7 @@ int cHole::ReadDrl(string filename) {
 		found = sLgnChamp[0].find("METRIC");
 		if (found != std::string::npos) {
 			iHasBeenTiTd = 1;
-			std::cout << "'in drill file METRIC OK" << std::endl;
+			std::cout << "in drill file METRIC OK" << std::endl;
 		}
 
 		found = sLgnChamp[0].find("INCH");
@@ -124,17 +124,19 @@ int cHole::ReadDrl(string filename) {
 			sY = sLgnChamp[5] + "." + sLgnChamp[7];
 			double dXb = stod(sX);
 			double dYb = stod(sY);
+			dXb -= dpO.dXp;
 			tery.push_back(dXb);
-			if (MIRROR == 0)
-				tery.push_back(dYb);
+			if (iMirror == 0)
+				dYb = dYb - dpO.dYp;
 			else
-				tery.push_back(-dYb);
+				dYb = dpE.dYp - dYb;
+			tery.push_back(dYb);
 			tery.push_back(daTool[iTool]);
 			mdHole.push_back(tery);
 		}
 
 		if (iHasBeenTiTd == 0) {   // La lgn n'as pas été traitée pb
-			std::cout << "Ligne drill non Traitée : " << linebuffer << std::endl;
+			//debug	std::cout << "Ligne drill non Traitée : " << linebuffer << std::endl;
 			//return 1;
 		}
 	}
@@ -143,7 +145,7 @@ int cHole::ReadDrl(string filename) {
 
 // find if a drill at pos dX dY return diamter or 0 if not
 double cHole::DrillAtPos(double dX, double dY) {
-	for (int in = 0; in < mdHole.size(); in++) {
+	for (unsigned int in = 0; in < mdHole.size(); in++) {
 		if ((fabs(mdHole[in][0] - dX) < DHOLETOL) && (fabs(mdHole[in][1] - dY) < DHOLETOL))
 			return mdHole[in][2];
 	}

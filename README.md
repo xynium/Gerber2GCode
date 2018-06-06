@@ -11,13 +11,20 @@
 
 For converting Gerber files to GCode.
 Tested with Gerber file from Kicad
+
 Gerber2Gcode test
 will execute the conversion on test.gbr and test.drl if exists and write test.gcode 
+
 file should be metric
+
 test.gcode is ready to plot the pcb on a 3D printer with a pen adapter.
-Assumed the pen write a 0.4mm line and a recovering of 0.1mm between 2 lines.
-Pen Up position is 15mm down 0.1mmm
+
+Assumed the pen write a 0.3mm line and a recovering of 0.14mm between 2 lines.
+Pen Up position is 4mm down 0mmm
 If one wants other preset, see PNGerber.hpp and change #define accordingly.
+
+TODO: When plotting zone sometimes display "odd number of line ..." in such a case
+modify the recovering distance a little.
 
 Jean Pierre
 

@@ -32,11 +32,11 @@
 using namespace std;
 
 //user def
-#define ZDWN 0.1    // pen low level in mm
-#define ZUP  5    // pen higth level in mm
-#define PTDIAM 0.4   // in mm pen diameter 
-#define CHVMT 0.1 // in mm recovering of 2 lines
-#define MIRROR 0 // 1 si mirroir
+#define ZDWN 0   // pen low level in mm
+#define ZUP  4    // pen higth level in mm
+#define PTDIAM 0.3   // in mm pen diameter
+#define CHVMT 0.14 // in mm recovering of 2 lines
+#define MIRROR 1 // 1 si mirroir
 
 //prog def
 #define NAPPERT 60  // dimension tableau appert nombre d'appert supporté
@@ -62,6 +62,7 @@ private:
 public:
 	int iHasDrill;  // =0 si le fichier drill has been corectly read
 	int iMirror; // global parrameter defined
+	dPts dpO, dpE;
 
 public:
 	cHole(void);

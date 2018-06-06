@@ -12,13 +12,14 @@
 
  Po les fichiers issu de kicad
 
+ 9.1/24in millimeter
+
  M02 est la fin de l'objet
 
  Le fonctionnement des D est assumé en G01
 
 
  TODO dans FS ne prend que si spec les chiffres apres la vigule
-
 
  */
 
@@ -60,7 +61,7 @@ int main(int argc, char **argv) {
 
 	string filename;
 	string sLgnChamp[40];
-	string sAperture[NAPPERT][7]; // 30 Aperture a 7 champs
+	string sAperture[NAPPERT][7]; // Aperture a 7 champs
 	char cL;
 	string linebuffer;
 	int iPos, iType, iOrder;
@@ -78,16 +79,17 @@ int main(int argc, char **argv) {
 	std::cout
 			<< "Gerber2GCode\n  Copyright (C) 2018  Lathuile Jean Pierre\nThis program comes with ABSOLUTELY NO WARRANTY; for details see licence file.\n This is free software, and you are welcome to redistribute it\n under certain conditions"
 			<< linebuffer << std::endl;
+	std::cout << std::endl;
 
 	if (argc < 2) {
 		fprintf(stderr, "Usage: %s filename without .gbr if drl file present should have same name\n", argv[0]);
 		fprintf(stderr, "\nFollowing options (after file name) :\n");
-		fprintf(stderr, "    -M   -> Mirror default no\n");
-		fprintf(stderr, "    -Px.x   -> x.x pen point diameter in mm default 0.4mm\n");
-		fprintf(stderr, "    -Cx.x   -> x.x line recovering in mm default 0.1mm\n");
-		fprintf(stderr, "    -Ux   ->  x pen up position mm default 5mm\n");
-		fprintf(stderr, "    -Dx   ->  x pen down position mm default 0.1mm\n");
-		return 1; //todo
+		fprintf(stderr, "    -M   -> Mirror default yes\n");
+		fprintf(stderr, "    -Px.x   -> x.x pen point diameter in mm default 0.3mm\n");
+		fprintf(stderr, "    -Cx.x   -> x.x line recovering in mm default 0.14mm\n");
+		fprintf(stderr, "    -Ux   ->  x pen up position mm default 4mm\n");
+		fprintf(stderr, "    -Dx   ->  x pen down position mm default 0mm\n");
+			return 1; //todo
 	}
 	filename = argv[1];
 	//filename = "test";
@@ -120,6 +122,17 @@ int main(int argc, char **argv) {
 	}
 
 	outfile.open(filename + ".gcode"); // open an output file stream
+
+	dpO = (dPts*) malloc(sizeof(dPts));
+	dpE = (dPts*) malloc(sizeof(dPts));
+
+	GetPCBLimit(filename, dpO, dpE);  // Cherche la dimension du pcb
+
+	sX = format("PCB Dimension :  %f x %f  mm   ", dpE->dXp - dpO->dXp, dpE->dYp - dpO->dYp);
+	std::cout << std::endl << sX << std::endl;
+
+	cmHole.dpE = *dpE;
+	cmHole.dpO = *dpO;
 	cmHole.iMirror = iMIRROR;
 	cmHole.iHasDrill = cmHole.ReadDrl(filename + ".drl");
 
@@ -134,15 +147,6 @@ int main(int argc, char **argv) {
 	outfile << "G90" << std::endl;	//G90 ; use absolute coordinates
 	outfile << "G1 Z" << dZUP << std::endl; // monte
 	outfile << "G1 F600" << std::endl; //Set la vitesse mm/mn
-
-	dpO = (dPts*) malloc(sizeof(dPts));
-	dpE = (dPts*) malloc(sizeof(dPts));
-
-	GetPCBLimit(filename, dpO, dpE);  // Cherche la dimension du pcb
-
-	sX = format("PCB Dimension :  %f x %f  mm   ", dpE->dXp - dpO->dXp, dpE->dYp - dpO->dYp);
-
-	std::cout << std::endl << sX << std::endl;
 
 	sX = "0.0";  // point de depart normalment pas utilisé
 	sY = "0.0";
@@ -350,7 +354,7 @@ int main(int argc, char **argv) {
 								dTr = 0;
 								dXR = stod(sAperture[iCurApert][2]) / 2.0;
 								if (sAperture[iCurApert][3][0] == 'X')
-									dTr = stod(sAperture[iCurApert][4]) / 2.0;
+									dTr = stod(sAperture[iCurApert][4]) / 2.0;  // Dans kicad le diam des trou est dans le drill file le diam est recherché dans plotthetruc
 
 								outfile << "G1 X" << sX << " Y" << sY << " Z" << dZUP << std::endl; // amenne le crayon  a la pos
 								sX = sLgnChamp[1];
@@ -673,8 +677,6 @@ void PlotTheTruc(double dX, double dY, double dXR, double dYR, double dTr, strin
 	else
 		dYR = 0;
 
-	//if (dXR<0) dXR=0;   // modif 1/06 les pad de ci sont trop large
-	//if (dYR<0) dYR=0;
 	iTp = 0;
 
 	while (iTp != 2) {
@@ -919,7 +921,7 @@ void GetPCBLimit(string fs, dPts *dpO, dPts *dpE) {
 				unsigned int ia;
 				int ic;
 				string sXN, sYN;
-				double dTr;
+				//double dTr;
 
 				for (ic = 0; ic < iOrder; ic++) { // met la virgule la longueur ne change pas -> le dernier chiffre saute
 					if ((sLgnChamp[ic][0] == 'X') || (sLgnChamp[ic][0] == 'I')) {
@@ -971,7 +973,7 @@ std::string format(const char* format, ...) {
 	vsnprintf_s((char*)result.data(), size, _TRUNCATE, format, args);
 	return result;
 #endif
-	va_end(args);
+va_end(args);
 }
 /*
  G1 X20.544472 Y20.077782 Z15
