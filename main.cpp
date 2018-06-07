@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "    -Cx.x   -> x.x line recovering in mm default 0.14mm\n");
 		fprintf(stderr, "    -Ux   ->  x pen up position mm default 4mm\n");
 		fprintf(stderr, "    -Dx   ->  x pen down position mm default 0mm\n");
-			return 1; //todo
+		return 1; //todo
 	}
 	filename = argv[1];
 	//filename = "test";
@@ -130,6 +130,15 @@ int main(int argc, char **argv) {
 
 	sX = format("PCB Dimension :  %f x %f  mm   ", dpE->dXp - dpO->dXp, dpE->dYp - dpO->dYp);
 	std::cout << std::endl << sX << std::endl;
+
+	sX = "No Mirror";
+	if (iMIRROR == 1)
+		sX = "Mirror";
+	std::cout << sX << std::endl;
+	sX = format("Pen Up :  %f mm     Pen Down : %f  mm   ", dZUP, dZDWN);
+	std::cout << sX << std::endl;
+	sX = format("Pen Width :  %f mm     Recovering : %f  mm   ", dPTDIAM, dCHVMT);
+	std::cout << sX << std::endl;
 
 	cmHole.dpE = *dpE;
 	cmHole.dpO = *dpO;
@@ -244,18 +253,22 @@ int main(int argc, char **argv) {
 				if ((sLgnChamp[1][0] == '0') && (sLgnChamp[1][1] == '1')) { // interpolation lineaire non utilisé
 					iHasBeenTiTd = 1;
 				}
-				if ((sLgnChamp[1][0] == '3') && (sLgnChamp[1][1] == '6')) { // Debut de zone    non traité
+				if ((sLgnChamp[1][0] == '3') && (sLgnChamp[1][1] == '6')) { // Debut de zone
 					iHasBeenTiTd = 1;
-					if (iInZone == 1)
+					if (iInZone == 1) {
 						PlotZone(mdEdg);
-					iInZone = 1;
+						iInZone = 0;
+					} else
+						iInZone = 1;
 					mdEdg.clear();
 				}
 				if ((sLgnChamp[1][0] == '3') && (sLgnChamp[1][1] == '7')) { // fin zone
 					iHasBeenTiTd = 1;
-					if (iInZone == 1)
+					if (iInZone == 1) {
 						PlotZone(mdEdg);
-					iInZone = 1;      // Normalment 0 mais les zones semblent se suivre
+						iInZone = 0;
+					} else
+						iInZone = 1; // Normalment 0 mais les zones semblent se suivre
 					mdEdg.clear();
 				}
 
@@ -747,7 +760,7 @@ void PlotSeg(double dXa, double dYa, double dXb, double dYb, double dXR) {
 	int iNpass;
 	double dz, dz2, dSgn, dAlt;
 
-	//dXR *= 5.0;
+//dXR *= 5.0;
 	dSgn = 0.0;
 	dAlt = 1.0;
 
@@ -962,19 +975,14 @@ void GetPCBLimit(string fs, dPts *dpO, dPts *dpE) {
 std::string format(const char* format, ...) {
 	va_list args;
 	va_start(args, format);
-#ifndef _MSC_VER
 	size_t size = std::snprintf(nullptr, 0, format, args) + 1; // Extra space for '\0'
 	std::unique_ptr<char[]> buf(new char[size]);
 	std::vsnprintf(buf.get(), size, format, args);
-	return std::string(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
-#else
-	int size = _vscprintf(format, args);
-	std::string result(++size, 0);
-	vsnprintf_s((char*)result.data(), size, _TRUNCATE, format, args);
-	return result;
-#endif
-va_end(args);
+	va_end(args);
+//return std::string(buf.get(), buf.get() + size-1 ); // We don't want the '\0' inside
+	return std::string(buf.get());
 }
+
 /*
  G1 X20.544472 Y20.077782 Z15
  G1 X25.000000 Y25.000000
